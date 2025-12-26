@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SQLGenerator", "SQLGenerator\SQLGenerator.csproj", "{E0BEC017-236F-4C94-8BAD-1F4138739F3D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SQLGenerator.Tests", "SQLGenerator.Tests\SQLGenerator.Tests.csproj", "{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,18 @@ Global
 		{E0BEC017-236F-4C94-8BAD-1F4138739F3D}.Release|x64.Build.0 = Release|Any CPU
 		{E0BEC017-236F-4C94-8BAD-1F4138739F3D}.Release|x86.ActiveCfg = Release|Any CPU
 		{E0BEC017-236F-4C94-8BAD-1F4138739F3D}.Release|x86.Build.0 = Release|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Debug|x64.Build.0 = Debug|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Debug|x86.Build.0 = Debug|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Release|x64.ActiveCfg = Release|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Release|x64.Build.0 = Release|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Release|x86.ActiveCfg = Release|Any CPU
+		{BDD731C6-E0B9-4AD6-95A0-A0B8E8914D40}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
