@@ -27,6 +27,57 @@ public static class SQLGeneratorUtils
     }
 
     /// <summary>
+    /// Checks if two SQL data types are compatible (basic type matching)
+    /// </summary>
+    public static bool AreTypesCompatible(string sqlServerType, string targetType)
+    {
+        // Normalize both types to lowercase for comparison
+        var sqlType = sqlServerType.ToLower();
+        var target = targetType.ToLower();
+        
+        // Direct match
+        if (sqlType == target)
+            return true;
+            
+        // Check base type compatibility
+        // NVARCHAR variations
+        if ((sqlType.Contains("nvarchar") || sqlType == "ntext") && target.Contains("nvarchar"))
+            return true;
+            
+        // INT variations
+        if ((sqlType == "int" || sqlType == "integer") && target == "int")
+            return true;
+            
+        // BIGINT variations
+        if ((sqlType == "bigint") && target == "bigint")
+            return true;
+            
+        // DECIMAL/NUMERIC variations
+        if ((sqlType.Contains("decimal") || sqlType.Contains("numeric") || sqlType == "money") && 
+            target.Contains("decimal"))
+            return true;
+            
+        // FLOAT/REAL variations
+        if ((sqlType == "float" || sqlType == "real") && target == "float")
+            return true;
+            
+        // DATE/DATETIME variations
+        if ((sqlType.Contains("datetime") || sqlType == "date" || sqlType == "smalldatetime") && 
+            target.Contains("datetime"))
+            return true;
+            
+        // BIT/BOOLEAN
+        if (sqlType == "bit" && target == "bit")
+            return true;
+            
+        // BINARY variations
+        if ((sqlType.Contains("varbinary") || sqlType == "binary") && target.Contains("varbinary"))
+            return true;
+            
+        return false;
+    }
+
+    /// <summary>
     /// Validates that a connection string includes encryption
     /// </summary>
     public static bool ValidateConnectionStringSecurity(string connString)

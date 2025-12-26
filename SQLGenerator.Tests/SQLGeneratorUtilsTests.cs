@@ -268,4 +268,80 @@ public class SQLGeneratorUtilsTests
         Assert.Equal("NVARCHAR(MAX)", result2);
         Assert.Equal("NVARCHAR(MAX)", result3);
     }
+
+    [Fact]
+    public void AreTypesCompatible_SameTypes_ReturnsTrue()
+    {
+        // Arrange & Act
+        var result = SQLGeneratorUtils.AreTypesCompatible("int", "INT");
+
+        // Assert
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void AreTypesCompatible_NVarcharVariations_ReturnsTrue()
+    {
+        // Arrange & Act
+        var result1 = SQLGeneratorUtils.AreTypesCompatible("nvarchar", "NVARCHAR(MAX)");
+        var result2 = SQLGeneratorUtils.AreTypesCompatible("nvarchar(100)", "NVARCHAR(MAX)");
+        var result3 = SQLGeneratorUtils.AreTypesCompatible("ntext", "NVARCHAR(MAX)");
+
+        // Assert
+        Assert.True(result1);
+        Assert.True(result2);
+        Assert.True(result3);
+    }
+
+    [Fact]
+    public void AreTypesCompatible_IntegerTypes_ReturnsTrue()
+    {
+        // Arrange & Act
+        var result1 = SQLGeneratorUtils.AreTypesCompatible("int", "INT");
+        var result2 = SQLGeneratorUtils.AreTypesCompatible("bigint", "BIGINT");
+
+        // Assert
+        Assert.True(result1);
+        Assert.True(result2);
+    }
+
+    [Fact]
+    public void AreTypesCompatible_DecimalVariations_ReturnsTrue()
+    {
+        // Arrange & Act
+        var result1 = SQLGeneratorUtils.AreTypesCompatible("decimal", "DECIMAL(18,2)");
+        var result2 = SQLGeneratorUtils.AreTypesCompatible("numeric", "DECIMAL(18,2)");
+        var result3 = SQLGeneratorUtils.AreTypesCompatible("money", "DECIMAL(18,2)");
+
+        // Assert
+        Assert.True(result1);
+        Assert.True(result2);
+        Assert.True(result3);
+    }
+
+    [Fact]
+    public void AreTypesCompatible_DateTimeVariations_ReturnsTrue()
+    {
+        // Arrange & Act
+        var result1 = SQLGeneratorUtils.AreTypesCompatible("datetime", "DATETIME2");
+        var result2 = SQLGeneratorUtils.AreTypesCompatible("datetime2", "DATETIME2");
+        var result3 = SQLGeneratorUtils.AreTypesCompatible("date", "DATETIME2");
+
+        // Assert
+        Assert.True(result1);
+        Assert.True(result2);
+        Assert.True(result3);
+    }
+
+    [Fact]
+    public void AreTypesCompatible_IncompatibleTypes_ReturnsFalse()
+    {
+        // Arrange & Act
+        var result1 = SQLGeneratorUtils.AreTypesCompatible("int", "NVARCHAR(MAX)");
+        var result2 = SQLGeneratorUtils.AreTypesCompatible("datetime", "INT");
+
+        // Assert
+        Assert.False(result1);
+        Assert.False(result2);
+    }
 }
