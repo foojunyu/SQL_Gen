@@ -175,3 +175,18 @@ If you don't want to use the full object format, you can use just an array:
 - Verify JSON format is correct
 - Ensure at least one column is defined
 - Check status log for detailed error messages
+
+### Column Matching Improvements
+
+The application uses intelligent column matching with multiple strategies:
+
+1. **Exact Match**: Direct case-insensitive comparison
+2. **Normalized Match**: Removes spaces, underscores, hyphens (e.g., "Operation Code" matches "OPERATION_CODE")
+3. **Partial Match**: Checks if one name contains the other
+4. **Normalized Partial**: Combines normalization with partial matching
+
+**Examples of successful matches:**
+- "Area" → "AREA"
+- "Operation Code" → "OPERATION_CODE", "OperationCode", "OPERATIONCODE"
+- "Sub Family" → "SUB_FAMILY", "SUBFAMILY"
+- "Month" → "MONTH", "MONTH_NAME"
