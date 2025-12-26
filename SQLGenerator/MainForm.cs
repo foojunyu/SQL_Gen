@@ -8,6 +8,7 @@ public partial class MainForm : Form
 {
     private string? connectionString;
     private Dictionary<string, List<ColumnInfo>> tableSchemas = new();
+    private bool isConnecting = false;
 
     public MainForm()
     {
@@ -16,8 +17,18 @@ public partial class MainForm : Form
 
     private async void btnConnect_Click(object sender, EventArgs e)
     {
+        // Prevent multiple concurrent connection attempts
+        if (isConnecting)
+        {
+            MessageBox.Show("A connection attempt is already in progress.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
         try
         {
+            isConnecting = true;
+            btnConnect.Enabled = false;
+            
             txtStatus.AppendText("Connecting to Azure Fabric Data Warehouse...\r\n");
             connectionString = txtConnectionString.Text.Trim();
 
@@ -25,6 +36,13 @@ public partial class MainForm : Form
             {
                 MessageBox.Show("Please enter a connection string.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
+            }
+
+            // Validate connection string security
+            if (!ValidateConnectionStringSecurity(connectionString))
+            {
+                MessageBox.Show("Connection string must include 'Encrypt=True' for secure connections.", "Security Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                txtStatus.AppendText("Warning: Connection string should use encryption.\r\n");
             }
 
             using var connection = new SqlConnection(connectionString);
@@ -37,11 +55,27 @@ public partial class MainForm : Form
             btnGenerateSQL.Enabled = true;
             MessageBox.Show("Connected successfully!", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
+        catch (SqlException sqlEx)
+        {
+            txtStatus.AppendText($"SQL Connection failed: {sqlEx.Message}\r\n");
+            MessageBox.Show($"SQL Connection failed: {sqlEx.Message}\r\nPlease verify your connection string and credentials.", "SQL Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
         catch (Exception ex)
         {
             txtStatus.AppendText($"Connection failed: {ex.Message}\r\n");
             MessageBox.Show($"Connection failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+        finally
+        {
+            isConnecting = false;
+            btnConnect.Enabled = true;
+        }
+    }
+
+    private bool ValidateConnectionStringSecurity(string connString)
+    {
+        // Check if encryption is enabled
+        return connString.Contains("Encrypt=True", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task LoadTablesAsync(SqlConnection connection)
@@ -109,7 +143,7 @@ public partial class MainForm : Form
             
             if (powerBIColumns == null || powerBIColumns.Count == 0)
             {
-                MessageBox.Show("Invalid Power BI table definition.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Invalid Power BI table definition. Please check the JSON format.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
@@ -118,6 +152,11 @@ public partial class MainForm : Form
             
             txtGeneratedSQL.Text = sql;
             txtStatus.AppendText("SQL generated successfully!\r\n");
+        }
+        catch (JsonException jsonEx)
+        {
+            txtStatus.AppendText($"JSON parsing error: {jsonEx.Message}\r\n");
+            MessageBox.Show($"Invalid JSON format: {jsonEx.Message}", "JSON Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         catch (Exception ex)
         {
@@ -134,7 +173,7 @@ public partial class MainForm : Form
             var powerBITable = JsonSerializer.Deserialize<PowerBITableDefinition>(json, options);
             return powerBITable?.Columns;
         }
-        catch
+        catch (JsonException)
         {
             // Try parsing as just an array of columns
             try
@@ -142,8 +181,9 @@ public partial class MainForm : Form
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 return JsonSerializer.Deserialize<List<PowerBIColumn>>(json, options);
             }
-            catch
+            catch (JsonException)
             {
+                txtStatus.AppendText("Failed to parse JSON as PowerBITableDefinition or List<PowerBIColumn>\r\n");
                 return null;
             }
         }
