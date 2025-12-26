@@ -32,6 +32,16 @@ dotnet restore
 dotnet build
 ```
 
+## Running Tests
+
+Unit tests are included in the `SQLGenerator.Tests` project. Tests require Windows Desktop runtime and should be run on Windows:
+
+```bash
+dotnet test
+```
+
+Note: Tests will not run on Linux/Mac due to Windows Forms dependencies, but the application builds successfully on all platforms.
+
 ## Running the Application
 
 ```bash

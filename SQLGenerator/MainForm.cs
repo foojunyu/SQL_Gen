@@ -39,7 +39,7 @@ public partial class MainForm : Form
             }
 
             // Validate connection string security
-            if (!ValidateConnectionStringSecurity(connectionString))
+            if (!SQLGeneratorUtils.ValidateConnectionStringSecurity(connectionString))
             {
                 MessageBox.Show("Connection string must include 'Encrypt=True' for secure connections.", "Security Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 txtStatus.AppendText("Warning: Connection string should use encryption.\r\n");
@@ -70,12 +70,6 @@ public partial class MainForm : Form
             isConnecting = false;
             btnConnect.Enabled = true;
         }
-    }
-
-    private bool ValidateConnectionStringSecurity(string connString)
-    {
-        // Check if encryption is enabled
-        return connString.Contains("Encrypt=True", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task LoadTablesAsync(SqlConnection connection)
@@ -139,7 +133,7 @@ public partial class MainForm : Form
             }
 
             // Parse Power BI table definition
-            var powerBIColumns = ParsePowerBITable(txtPowerBITable.Text);
+            var powerBIColumns = SQLGeneratorUtils.ParsePowerBITable(txtPowerBITable.Text);
             
             if (powerBIColumns == null || powerBIColumns.Count == 0)
             {
@@ -165,30 +159,6 @@ public partial class MainForm : Form
         }
     }
 
-    private List<PowerBIColumn>? ParsePowerBITable(string json)
-    {
-        try
-        {
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var powerBITable = JsonSerializer.Deserialize<PowerBITableDefinition>(json, options);
-            return powerBITable?.Columns;
-        }
-        catch (JsonException)
-        {
-            // Try parsing as just an array of columns
-            try
-            {
-                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                return JsonSerializer.Deserialize<List<PowerBIColumn>>(json, options);
-            }
-            catch (JsonException)
-            {
-                txtStatus.AppendText("Failed to parse JSON as PowerBITableDefinition or List<PowerBIColumn>\r\n");
-                return null;
-            }
-        }
-    }
-
     private string GenerateSQLForPowerBI(List<PowerBIColumn> powerBIColumns)
     {
         // Find the best matching table
@@ -209,7 +179,7 @@ public partial class MainForm : Form
         }
         
         // Generate generic SQL
-        return GenerateGenericSQL(powerBIColumns);
+        return SQLGeneratorUtils.GenerateGenericSQL(powerBIColumns);
     }
 
     private string? FindBestMatchingTable(List<PowerBIColumn> powerBIColumns)
@@ -260,7 +230,7 @@ public partial class MainForm : Form
                 // Add type conversion if needed
                 if (!string.IsNullOrEmpty(pbCol.DataType))
                 {
-                    string sqlType = MapPowerBIToSQLType(pbCol.DataType);
+                    string sqlType = SQLGeneratorUtils.MapPowerBIToSQLType(pbCol.DataType);
                     if (!matchingColumn.DataType.Equals(sqlType, StringComparison.OrdinalIgnoreCase))
                     {
                         columnExpr = $"    CAST([{matchingColumn.ColumnName}] AS {sqlType})";
@@ -285,40 +255,7 @@ public partial class MainForm : Form
 
     private string GenerateGenericSQL(List<PowerBIColumn> powerBIColumns)
     {
-        var sql = new System.Text.StringBuilder();
-        
-        sql.AppendLine("-- Generic SQL Query to match Power BI table structure");
-        sql.AppendLine("-- Please replace [YourTableName] with the actual table name");
-        sql.AppendLine("SELECT");
-        
-        var selectColumns = new List<string>();
-        
-        foreach (var pbCol in powerBIColumns)
-        {
-            string sqlType = MapPowerBIToSQLType(pbCol.DataType ?? "String");
-            selectColumns.Add($"    CAST(NULL AS {sqlType}) AS [{pbCol.Name}]");
-        }
-        
-        sql.AppendLine(string.Join(",\r\n", selectColumns));
-        sql.AppendLine("FROM [YourTableName];");
-        
-        return sql.ToString();
-    }
-
-    private string MapPowerBIToSQLType(string powerBIType)
-    {
-        return powerBIType.ToLower() switch
-        {
-            "string" or "text" => "NVARCHAR(MAX)",
-            "int64" or "integer" => "BIGINT",
-            "int32" => "INT",
-            "decimal" or "number" => "DECIMAL(18,2)",
-            "double" => "FLOAT",
-            "datetime" or "date" => "DATETIME2",
-            "boolean" or "bool" => "BIT",
-            "binary" => "VARBINARY(MAX)",
-            _ => "NVARCHAR(MAX)"
-        };
+        return SQLGeneratorUtils.GenerateGenericSQL(powerBIColumns);
     }
 
     private void btnCopy_Click(object sender, EventArgs e)
