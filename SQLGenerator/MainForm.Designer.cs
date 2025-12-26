@@ -35,6 +35,7 @@ partial class MainForm
         
         this.grpPowerBI = new System.Windows.Forms.GroupBox();
         this.btnLoadExample = new System.Windows.Forms.Button();
+        this.btnLoadCSV = new System.Windows.Forms.Button();
         this.txtPowerBITable = new System.Windows.Forms.TextBox();
         this.lblPowerBITable = new System.Windows.Forms.Label();
         
@@ -125,6 +126,7 @@ partial class MainForm
         // 
         // grpPowerBI
         // 
+        this.grpPowerBI.Controls.Add(this.btnLoadCSV);
         this.grpPowerBI.Controls.Add(this.btnLoadExample);
         this.grpPowerBI.Controls.Add(this.txtPowerBITable);
         this.grpPowerBI.Controls.Add(this.lblPowerBITable);
@@ -133,7 +135,7 @@ partial class MainForm
         this.grpPowerBI.Size = new System.Drawing.Size(554, 180);
         this.grpPowerBI.TabIndex = 2;
         this.grpPowerBI.TabStop = false;
-        this.grpPowerBI.Text = "Power BI Table Definition (JSON)";
+        this.grpPowerBI.Text = "Power BI Table / CSV Data";
         
         // 
         // lblPowerBITable
@@ -141,9 +143,9 @@ partial class MainForm
         this.lblPowerBITable.AutoSize = true;
         this.lblPowerBITable.Location = new System.Drawing.Point(6, 19);
         this.lblPowerBITable.Name = "lblPowerBITable";
-        this.lblPowerBITable.Size = new System.Drawing.Size(320, 15);
+        this.lblPowerBITable.Size = new System.Drawing.Size(380, 15);
         this.lblPowerBITable.TabIndex = 0;
-        this.lblPowerBITable.Text = "Enter Power BI table structure in JSON format (or load example):";
+        this.lblPowerBITable.Text = "Enter Power BI JSON or load CSV file to auto-detect structure:";
         
         // 
         // txtPowerBITable
@@ -165,6 +167,17 @@ partial class MainForm
         this.btnLoadExample.Text = "Load Example";
         this.btnLoadExample.UseVisualStyleBackColor = true;
         this.btnLoadExample.Click += new System.EventHandler(this.btnLoadExample_Click);
+        
+        // 
+        // btnLoadCSV
+        // 
+        this.btnLoadCSV.Location = new System.Drawing.Point(132, 148);
+        this.btnLoadCSV.Name = "btnLoadCSV";
+        this.btnLoadCSV.Size = new System.Drawing.Size(120, 25);
+        this.btnLoadCSV.TabIndex = 3;
+        this.btnLoadCSV.Text = "Load from CSV";
+        this.btnLoadCSV.UseVisualStyleBackColor = true;
+        this.btnLoadCSV.Click += new System.EventHandler(this.btnLoadCSV_Click);
         
         // 
         // grpSQL
@@ -291,6 +304,7 @@ partial class MainForm
     private System.Windows.Forms.Label lblPowerBITable;
     private System.Windows.Forms.TextBox txtPowerBITable;
     private System.Windows.Forms.Button btnLoadExample;
+    private System.Windows.Forms.Button btnLoadCSV;
     
     private System.Windows.Forms.GroupBox grpSQL;
     private System.Windows.Forms.TextBox txtGeneratedSQL;
