@@ -65,9 +65,38 @@ CustomerID,CustomerName,Email,RegistrationDate,TotalPurchases,IsActive
 5. Click "Generate SQL" to create a matching query
 6. The application will find the best matching table in Azure Fabric or generate a template
 
+**Generated SQL with Enhanced Features:**
+```sql
+-- SQL Query to match Power BI table structure from dbo.Customers
+-- Data Validation: Check if CSV values exist in database
+-- Check if values for 'CustomerID' exist:
+SELECT DISTINCT [CUSTOMER_ID] FROM [dbo.Customers] WHERE [CUSTOMER_ID] IN ('1001', '1002', '1003');
+-- Check if values for 'CustomerName' exist:
+SELECT DISTINCT [CUSTOMER_NAME] FROM [dbo.Customers] WHERE [CUSTOMER_NAME] IN ('John Smith', 'Jane Doe', 'Bob Johnson');
+
+-- Main SELECT query
+SELECT
+    [CUSTOMER_ID] AS [CustomerID],
+    [CUSTOMER_NAME] AS [CustomerName],
+    [EMAIL] AS [Email],
+    CAST([REGISTRATION_DATE] AS DATETIME2) AS [RegistrationDate],
+    [TOTAL_PURCHASES] AS [TotalPurchases],
+    [IS_ACTIVE] AS [IsActive]
+FROM [dbo.Customers]
+WHERE
+    [CUSTOMER_ID] IN ('1001', '1002', '1003') OR
+    [CUSTOMER_NAME] IN ('John Smith', 'Jane Doe', 'Bob Johnson');
+
+-- Sample data from database (top 5 rows)
+SELECT TOP 5 * FROM [dbo.Customers];
+```
+
 **Benefits:**
 - No manual JSON creation needed
 - Automatic data type inference
+- Data validation queries to check if CSV values exist in database
+- WHERE clauses to filter based on CSV data
+- Sample data queries for verification
 - Quick structure detection from existing data files
 
 ## Example 3: Connecting to Azure Fabric
