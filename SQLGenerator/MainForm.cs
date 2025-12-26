@@ -231,7 +231,7 @@ public partial class MainForm : Form
                 if (!string.IsNullOrEmpty(pbCol.DataType))
                 {
                     string sqlType = SQLGeneratorUtils.MapPowerBIToSQLType(pbCol.DataType);
-                    if (!matchingColumn.DataType.Equals(sqlType, StringComparison.OrdinalIgnoreCase))
+                    if (!SQLGeneratorUtils.AreTypesCompatible(matchingColumn.DataType, sqlType))
                     {
                         columnExpr = $"    CAST([{matchingColumn.ColumnName}] AS {sqlType})";
                     }
@@ -251,11 +251,6 @@ public partial class MainForm : Form
         sql.AppendLine($"FROM [{tableName}];");
         
         return sql.ToString();
-    }
-
-    private string GenerateGenericSQL(List<PowerBIColumn> powerBIColumns)
-    {
-        return SQLGeneratorUtils.GenerateGenericSQL(powerBIColumns);
     }
 
     private void btnCopy_Click(object sender, EventArgs e)
