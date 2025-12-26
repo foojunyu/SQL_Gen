@@ -9,7 +9,8 @@ A Windows Forms application that connects to Azure Fabric Data Warehouse and gen
 - **Power BI Table Matching**: Input your Power BI table structure in JSON format
 - **CSV File Import**: Load CSV files to auto-detect column structure and generate matching SQL
 - **Intelligent SQL Generation**: 
-  - Auto-matches Power BI columns with database tables
+  - Smart column matching with multiple strategies (exact, normalized, partial)
+  - Auto-matches columns even with different naming conventions (spaces, underscores, etc.)
   - Generates SELECT queries with proper column mappings
   - Includes type conversions when needed
   - Handles missing columns gracefully

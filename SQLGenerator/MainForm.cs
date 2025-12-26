@@ -192,7 +192,8 @@ public partial class MainForm : Form
             int matches = 0;
             foreach (var pbCol in powerBIColumns)
             {
-                if (table.Value.Any(c => c.ColumnName.Equals(pbCol.Name, StringComparison.OrdinalIgnoreCase)))
+                // Use the improved matching logic
+                if (FindMatchingColumn(table.Value, pbCol.Name) != null)
                 {
                     matches++;
                 }
@@ -220,8 +221,8 @@ public partial class MainForm : Form
         
         foreach (var pbCol in powerBIColumns)
         {
-            var matchingColumn = schema.FirstOrDefault(c => 
-                c.ColumnName.Equals(pbCol.Name, StringComparison.OrdinalIgnoreCase));
+            // Try multiple matching strategies
+            var matchingColumn = FindMatchingColumn(schema, pbCol.Name);
             
             if (matchingColumn != null)
             {
@@ -251,6 +252,45 @@ public partial class MainForm : Form
         sql.AppendLine($"FROM [{tableName}];");
         
         return sql.ToString();
+    }
+
+    private ColumnInfo? FindMatchingColumn(List<ColumnInfo> schema, string searchName)
+    {
+        // Strategy 1: Exact case-insensitive match
+        var match = schema.FirstOrDefault(c => 
+            c.ColumnName.Equals(searchName, StringComparison.OrdinalIgnoreCase));
+        if (match != null) return match;
+
+        // Strategy 2: Match after removing spaces and underscores
+        var normalizedSearch = NormalizeColumnName(searchName);
+        match = schema.FirstOrDefault(c => 
+            NormalizeColumnName(c.ColumnName).Equals(normalizedSearch, StringComparison.OrdinalIgnoreCase));
+        if (match != null) return match;
+
+        // Strategy 3: Partial match (search name is contained in column name or vice versa)
+        match = schema.FirstOrDefault(c => 
+            c.ColumnName.Contains(searchName, StringComparison.OrdinalIgnoreCase) ||
+            searchName.Contains(c.ColumnName, StringComparison.OrdinalIgnoreCase));
+        if (match != null) return match;
+
+        // Strategy 4: Match normalized partial strings
+        match = schema.FirstOrDefault(c =>
+        {
+            var normalizedCol = NormalizeColumnName(c.ColumnName);
+            return normalizedCol.Contains(normalizedSearch, StringComparison.OrdinalIgnoreCase) ||
+                   normalizedSearch.Contains(normalizedCol, StringComparison.OrdinalIgnoreCase);
+        });
+
+        return match;
+    }
+
+    private string NormalizeColumnName(string name)
+    {
+        // Remove spaces, underscores, hyphens, and other separators
+        return name.Replace(" ", "")
+                   .Replace("_", "")
+                   .Replace("-", "")
+                   .Replace(".", "");
     }
 
     private void btnCopy_Click(object sender, EventArgs e)
