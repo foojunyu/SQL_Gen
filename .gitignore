@@ -1,0 +1,29 @@
+## Build artifacts
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.dll
+*.exe
+*.pdb
+
+## NuGet packages
+packages/
+*.nupkg
+
+## Visual Studio
+.vs/
+*.vsidx
+*.vspscc
+*.vsp
+*.vspx
+
+## Rider
+.idea/
+*.sln.iml
+
+## Temp files
+/tmp/
+*.log
+*.tmp
