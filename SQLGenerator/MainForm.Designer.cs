@@ -88,7 +88,7 @@ partial class MainForm
         this.txtConnectionString.Name = "txtConnectionString";
         this.txtConnectionString.Size = new System.Drawing.Size(640, 23);
         this.txtConnectionString.TabIndex = 1;
-        this.txtConnectionString.Text = "Server=your-fabric-server.database.windows.net;Database=YourDatabase;User ID=YourUser;Password=YourPassword;Encrypt=True;";
+        this.txtConnectionString.Text = "Data Source=kcrbz3buyjle3j3lpx5z53qmiy-jfvyjn4f25ee5h2ktlg2ym4qxq.datawarehouse.fabric.microsoft.com;Initial Catalog=LH_BE_PPC;User ID=Jun-Yu.Foo@ams-osram.com;Pooling=False;Connect Timeout=30;Encrypt=True;Trust Server Certificate=True;Authentication=ActiveDirectoryInteractive;Application Name=vscode-mssql;Application Intent=ReadWrite;Command Timeout=30";
         
         // 
         // btnConnect
