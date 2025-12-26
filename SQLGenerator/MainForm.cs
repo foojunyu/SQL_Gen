@@ -304,6 +304,164 @@ public partial class MainForm : Form
         var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         txtPowerBITable.Text = JsonSerializer.Serialize(example, options);
     }
+
+    private void btnLoadCSV_Click(object sender, EventArgs e)
+    {
+        try
+        {
+            using var openFileDialog = new OpenFileDialog
+            {
+                Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                Title = "Select CSV File",
+                RestoreDirectory = true
+            };
+
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                txtStatus.AppendText($"Loading CSV file: {Path.GetFileName(openFileDialog.FileName)}...\r\n");
+                
+                var columns = ParseCSVFile(openFileDialog.FileName);
+                
+                if (columns != null && columns.Count > 0)
+                {
+                    var tableDefinition = new PowerBITableDefinition
+                    {
+                        Name = Path.GetFileNameWithoutExtension(openFileDialog.FileName),
+                        Columns = columns
+                    };
+
+                    var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+                    txtPowerBITable.Text = JsonSerializer.Serialize(tableDefinition, options);
+                    
+                    txtStatus.AppendText($"Successfully loaded {columns.Count} columns from CSV.\r\n");
+                    MessageBox.Show($"CSV file loaded successfully!\r\nDetected {columns.Count} columns.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    txtStatus.AppendText("Failed to parse CSV file or no columns detected.\r\n");
+                    MessageBox.Show("Failed to parse CSV file. Please ensure it has a header row.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            txtStatus.AppendText($"Error loading CSV: {ex.Message}\r\n");
+            MessageBox.Show($"Error loading CSV file: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private List<PowerBIColumn>? ParseCSVFile(string filePath)
+    {
+        try
+        {
+            var columns = new List<PowerBIColumn>();
+            
+            using var reader = new StreamReader(filePath);
+            
+            // Read header line
+            var headerLine = reader.ReadLine();
+            if (string.IsNullOrWhiteSpace(headerLine))
+            {
+                return null;
+            }
+
+            var headers = ParseCSVLine(headerLine);
+            
+            // Read first data row to infer types
+            var firstDataLine = reader.ReadLine();
+            if (string.IsNullOrWhiteSpace(firstDataLine))
+            {
+                // No data rows, just use headers with default String type
+                foreach (var header in headers)
+                {
+                    columns.Add(new PowerBIColumn { Name = header.Trim(), DataType = "String" });
+                }
+            }
+            else
+            {
+                var values = ParseCSVLine(firstDataLine);
+                
+                for (int i = 0; i < headers.Length; i++)
+                {
+                    var columnName = headers[i].Trim();
+                    var dataType = "String"; // Default
+                    
+                    if (i < values.Length)
+                    {
+                        dataType = InferDataType(values[i]);
+                    }
+                    
+                    columns.Add(new PowerBIColumn { Name = columnName, DataType = dataType });
+                }
+            }
+            
+            return columns;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private string[] ParseCSVLine(string line)
+    {
+        var values = new List<string>();
+        var currentValue = new System.Text.StringBuilder();
+        bool inQuotes = false;
+
+        for (int i = 0; i < line.Length; i++)
+        {
+            char c = line[i];
+
+            if (c == '"')
+            {
+                inQuotes = !inQuotes;
+            }
+            else if (c == ',' && !inQuotes)
+            {
+                values.Add(currentValue.ToString());
+                currentValue.Clear();
+            }
+            else
+            {
+                currentValue.Append(c);
+            }
+        }
+
+        values.Add(currentValue.ToString());
+        return values.ToArray();
+    }
+
+    private string InferDataType(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return "String";
+
+        value = value.Trim();
+
+        // Try integer
+        if (int.TryParse(value, out _))
+            return "Int32";
+
+        // Try long
+        if (long.TryParse(value, out _))
+            return "Int64";
+
+        // Try decimal
+        if (decimal.TryParse(value, out _))
+            return "Decimal";
+
+        // Try boolean
+        if (bool.TryParse(value, out _))
+            return "Boolean";
+
+        // Try datetime
+        if (DateTime.TryParse(value, out _))
+            return "DateTime";
+
+        // Default to string
+        return "String";
+    }
 }
 
 public class ColumnInfo

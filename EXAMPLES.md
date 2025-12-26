@@ -33,7 +33,44 @@ SELECT
 FROM [YourTableName];
 ```
 
-## Example 2: Connecting to Azure Fabric
+## Example 2: Loading Data Structure from CSV File
+
+1. Start the application and connect to Azure Fabric
+2. Click "Load from CSV" button
+3. Select a CSV file, for example `customer_data.csv`:
+
+```csv
+CustomerID,CustomerName,Email,RegistrationDate,TotalPurchases,IsActive
+1001,John Smith,john@example.com,2023-01-15,1250.50,true
+1002,Jane Doe,jane@example.com,2023-02-20,3420.75,true
+1003,Bob Johnson,bob@example.com,2023-03-10,890.25,false
+```
+
+4. The application automatically detects the structure and displays:
+
+```json
+{
+  "name": "customer_data",
+  "columns": [
+    { "name": "CustomerID", "dataType": "Int32" },
+    { "name": "CustomerName", "dataType": "String" },
+    { "name": "Email", "dataType": "String" },
+    { "name": "RegistrationDate", "dataType": "DateTime" },
+    { "name": "TotalPurchases", "dataType": "Decimal" },
+    { "name": "IsActive", "dataType": "Boolean" }
+  ]
+}
+```
+
+5. Click "Generate SQL" to create a matching query
+6. The application will find the best matching table in Azure Fabric or generate a template
+
+**Benefits:**
+- No manual JSON creation needed
+- Automatic data type inference
+- Quick structure detection from existing data files
+
+## Example 3: Connecting to Azure Fabric
 
 **Connection String Format:**
 ```
@@ -45,7 +82,7 @@ Server=your-workspace.datawarehouse.fabric.microsoft.com;Database=YourDatabase;U
 Server=your-workspace.datawarehouse.fabric.microsoft.com;Database=YourDatabase;Authentication=Active Directory Integrated;Encrypt=True;
 ```
 
-## Example 3: Matching Specific Table
+## Example 4: Matching Specific Table
 
 1. Connect to your Azure Fabric warehouse
 2. Select a table from the "Available Tables" list (e.g., "dbo.Sales")
@@ -64,7 +101,7 @@ SELECT
 FROM [dbo.Sales];
 ```
 
-## Example 4: Complex Power BI Table
+## Example 5: Complex Power BI Table
 
 ```json
 {
@@ -83,7 +120,7 @@ FROM [dbo.Sales];
 }
 ```
 
-## Example 5: Simplified Column Array Format
+## Example 6: Simplified Column Array Format
 
 If you don't want to use the full object format, you can use just an array:
 
@@ -99,8 +136,11 @@ If you don't want to use the full object format, you can use just an array:
 ## Tips and Best Practices
 
 1. **Test Connection First**: Always test your connection before generating SQL
-2. **Select Appropriate Tables**: If you know which table to query, select it from the list for better matching
-3. **Review Generated SQL**: Always review the generated SQL before using it in production
+2. **Use CSV Import**: For existing data files, use the "Load from CSV" feature for automatic structure detection
+3. **Select Appropriate Tables**: If you know which table to query, select it from the list for better matching
+4. **Review Generated SQL**: Always review the generated SQL before using it in production
+5. **CSV Format**: Ensure CSV files have a header row for proper column name detection
+6. **Type Inference**: The application infers types from the first data row in CSV files
 4. **Type Conversions**: The tool automatically adds CAST statements when data types don't match
 5. **Missing Columns**: Columns not found in the source table are generated as NULL with a comment
 6. **Case Sensitivity**: Column matching is case-insensitive for better flexibility

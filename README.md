@@ -1,12 +1,13 @@
 # SQL Generator for Azure Fabric & Power BI
 
-A Windows Forms application that connects to Azure Fabric Data Warehouse and generates SQL queries to match your designated Power BI data table structure.
+A Windows Forms application that connects to Azure Fabric Data Warehouse and generates SQL queries to match your designated Power BI data table structure or CSV file data.
 
 ## Features
 
 - **Azure Fabric Connectivity**: Connect to Azure Fabric Data Warehouse using connection strings
 - **Table Discovery**: Automatically loads and displays all available tables and their schemas
 - **Power BI Table Matching**: Input your Power BI table structure in JSON format
+- **CSV File Import**: Load CSV files to auto-detect column structure and generate matching SQL
 - **Intelligent SQL Generation**: 
   - Auto-matches Power BI columns with database tables
   - Generates SELECT queries with proper column mappings
@@ -64,7 +65,9 @@ Or use Visual Studio to open the solution and run.
    - After connecting, available tables will appear in the left panel
    - Select a table to view its columns in the status log
 
-3. **Define Power BI Table**:
+3. **Define Data Structure**:
+   
+   **Option A - Power BI JSON Format:**
    - Enter your Power BI table structure in JSON format, or click "Load Example"
    - Example format:
      ```json
@@ -78,6 +81,12 @@ Or use Visual Studio to open the solution and run.
        ]
      }
      ```
+   
+   **Option B - Load from CSV:**
+   - Click "Load from CSV" button
+   - Select a CSV file with header row
+   - The application will automatically detect column names and infer data types
+   - Column structure will be displayed in JSON format
 
 4. **Generate SQL**:
    - Optionally select a specific table from the list

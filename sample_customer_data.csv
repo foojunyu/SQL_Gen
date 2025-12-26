@@ -1,0 +1,6 @@
+CustomerID,CustomerName,Email,RegistrationDate,TotalPurchases,IsActive
+1001,John Smith,john@example.com,2023-01-15,1250.50,true
+1002,Jane Doe,jane@example.com,2023-02-20,3420.75,true
+1003,Bob Johnson,bob@example.com,2023-03-10,890.25,false
+1004,Alice Williams,alice@example.com,2023-04-05,2150.00,true
+1005,Charlie Brown,charlie@example.com,2023-05-12,567.80,false
