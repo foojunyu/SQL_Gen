@@ -7,13 +7,18 @@ A Windows Forms application that connects to Azure Fabric Data Warehouse and gen
 - **Azure Fabric Connectivity**: Connect to Azure Fabric Data Warehouse using connection strings
 - **Table Discovery**: Automatically loads and displays all available tables and their schemas
 - **Power BI Table Matching**: Input your Power BI table structure in JSON format
-- **CSV File Import**: Load CSV files to auto-detect column structure and generate matching SQL
+- **CSV File Import**: Load CSV files with data to auto-detect column structure and validate against database
 - **Intelligent SQL Generation**: 
   - Smart column matching with multiple strategies (exact, normalized, partial)
   - Auto-matches columns even with different naming conventions (spaces, underscores, etc.)
   - Generates SELECT queries with proper column mappings
   - Includes type conversions when needed
   - Handles missing columns gracefully
+- **Advanced CSV-Based Features**:
+  - **Data Validation**: Generates SQL to check if CSV values exist in database columns
+  - **WHERE Clause Generation**: Automatically creates WHERE clauses based on CSV data values
+  - **Sample Data Queries**: Includes queries to retrieve sample database records
+  - **Value Matching**: Compares CSV data against actual database content
 - **User-Friendly Interface**: 
   - Easy connection management
   - Table browsing with column details

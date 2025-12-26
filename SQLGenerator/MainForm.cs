@@ -9,6 +9,8 @@ public partial class MainForm : Form
     private string? connectionString;
     private Dictionary<string, List<ColumnInfo>> tableSchemas = new();
     private bool isConnecting = false;
+    private List<Dictionary<string, string>>? csvData = null; // Store CSV data rows
+    private string? csvFilePath = null; // Store the CSV file path
 
     public MainForm()
     {
@@ -215,6 +217,16 @@ public partial class MainForm : Form
         var sql = new System.Text.StringBuilder();
         
         sql.AppendLine($"-- SQL Query to match Power BI table structure from {tableName}");
+        
+        // If we have CSV data, add data validation query first
+        if (csvData != null && csvData.Count > 0 && !string.IsNullOrEmpty(connectionString))
+        {
+            sql.AppendLine("-- Data Validation: Check if CSV values exist in database");
+            sql.AppendLine(GenerateDataValidationSQL(tableName, powerBIColumns, schema));
+            sql.AppendLine();
+        }
+        
+        sql.AppendLine("-- Main SELECT query");
         sql.AppendLine("SELECT");
         
         var selectColumns = new List<string>();
@@ -249,9 +261,93 @@ public partial class MainForm : Form
         }
         
         sql.AppendLine(string.Join(",\r\n", selectColumns));
-        sql.AppendLine($"FROM [{tableName}];");
+        sql.AppendLine($"FROM [{tableName}]");
+        
+        // Add WHERE clause if we have CSV data
+        if (csvData != null && csvData.Count > 0)
+        {
+            sql.AppendLine(GenerateWhereClause(powerBIColumns, schema));
+        }
+        else
+        {
+            sql.AppendLine(";");
+        }
+        
+        // Add sample data query
+        sql.AppendLine();
+        sql.AppendLine("-- Sample data from database (top 5 rows)");
+        sql.AppendLine($"SELECT TOP 5 * FROM [{tableName}];");
         
         return sql.ToString();
+    }
+
+    private string GenerateDataValidationSQL(string tableName, List<PowerBIColumn> powerBIColumns, List<ColumnInfo> schema)
+    {
+        var sql = new System.Text.StringBuilder();
+        
+        if (csvData == null || csvData.Count == 0) return string.Empty;
+        
+        // For each column in CSV, check if values exist in database
+        foreach (var pbCol in powerBIColumns)
+        {
+            var matchingColumn = FindMatchingColumn(schema, pbCol.Name);
+            if (matchingColumn == null) continue;
+            
+            // Get unique values from CSV for this column
+            var uniqueValues = csvData
+                .Select(row => row.ContainsKey(pbCol.Name) ? row[pbCol.Name] : "")
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct()
+                .Take(10) // Limit to first 10 unique values
+                .ToList();
+            
+            if (uniqueValues.Count > 0)
+            {
+                sql.AppendLine($"-- Check if values for '{pbCol.Name}' exist:");
+                sql.Append($"SELECT DISTINCT [{matchingColumn.ColumnName}] FROM [{tableName}] WHERE [{matchingColumn.ColumnName}] IN (");
+                
+                var valueList = uniqueValues.Select(v => $"'{v.Replace("'", "''")}'");
+                sql.Append(string.Join(", ", valueList));
+                sql.AppendLine(");");
+            }
+        }
+        
+        return sql.ToString();
+    }
+
+    private string GenerateWhereClause(List<PowerBIColumn> powerBIColumns, List<ColumnInfo> schema)
+    {
+        if (csvData == null || csvData.Count == 0) return ";";
+        
+        var whereConditions = new List<string>();
+        
+        // Build WHERE clause based on CSV data
+        foreach (var pbCol in powerBIColumns)
+        {
+            var matchingColumn = FindMatchingColumn(schema, pbCol.Name);
+            if (matchingColumn == null) continue;
+            
+            // Get unique values from CSV (limit to reasonable number)
+            var uniqueValues = csvData
+                .Select(row => row.ContainsKey(pbCol.Name) ? row[pbCol.Name] : "")
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct()
+                .Take(100) // Limit to first 100 unique values
+                .ToList();
+            
+            if (uniqueValues.Count > 0 && uniqueValues.Count <= 20) // Only add if reasonable number
+            {
+                var valueList = uniqueValues.Select(v => $"'{v.Replace("'", "''")}'");
+                whereConditions.Add($"    [{matchingColumn.ColumnName}] IN ({string.Join(", ", valueList)})");
+            }
+        }
+        
+        if (whereConditions.Count > 0)
+        {
+            return "WHERE\r\n" + string.Join(" OR\r\n", whereConditions) + ";";
+        }
+        
+        return ";";
     }
 
     private ColumnInfo? FindMatchingColumn(List<ColumnInfo> schema, string searchName)
@@ -360,10 +456,13 @@ public partial class MainForm : Form
             {
                 txtStatus.AppendText($"Loading CSV file: {Path.GetFileName(openFileDialog.FileName)}...\r\n");
                 
-                var columns = ParseCSVFile(openFileDialog.FileName);
+                csvFilePath = openFileDialog.FileName;
+                var (columns, data) = ParseCSVFileWithData(csvFilePath);
                 
                 if (columns != null && columns.Count > 0)
                 {
+                    csvData = data; // Store the CSV data
+                    
                     var tableDefinition = new PowerBITableDefinition
                     {
                         Name = Path.GetFileNameWithoutExtension(openFileDialog.FileName),
@@ -373,8 +472,8 @@ public partial class MainForm : Form
                     var options = new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
                     txtPowerBITable.Text = JsonSerializer.Serialize(tableDefinition, options);
                     
-                    txtStatus.AppendText($"Successfully loaded {columns.Count} columns from CSV.\r\n");
-                    MessageBox.Show($"CSV file loaded successfully!\r\nDetected {columns.Count} columns.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    txtStatus.AppendText($"Successfully loaded {columns.Count} columns and {data?.Count ?? 0} data rows from CSV.\r\n");
+                    MessageBox.Show($"CSV file loaded successfully!\r\nDetected {columns.Count} columns and {data?.Count ?? 0} data rows.", "Success", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
                 else
                 {
@@ -440,6 +539,69 @@ public partial class MainForm : Form
         catch
         {
             return null;
+        }
+    }
+
+    private (List<PowerBIColumn>?, List<Dictionary<string, string>>?) ParseCSVFileWithData(string filePath)
+    {
+        try
+        {
+            var columns = new List<PowerBIColumn>();
+            var dataRows = new List<Dictionary<string, string>>();
+            
+            using var reader = new StreamReader(filePath);
+            
+            // Read header line
+            var headerLine = reader.ReadLine();
+            if (string.IsNullOrWhiteSpace(headerLine))
+            {
+                return (null, null);
+            }
+
+            var headers = ParseCSVLine(headerLine);
+            
+            // Read all data rows
+            string? line;
+            bool firstRow = true;
+            while ((line = reader.ReadLine()) != null)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                
+                var values = ParseCSVLine(line);
+                var row = new Dictionary<string, string>();
+                
+                for (int i = 0; i < headers.Length; i++)
+                {
+                    var columnName = headers[i].Trim();
+                    var value = i < values.Length ? values[i].Trim() : string.Empty;
+                    row[columnName] = value;
+                    
+                    // Infer data type from first row
+                    if (firstRow)
+                    {
+                        var dataType = InferDataType(value);
+                        columns.Add(new PowerBIColumn { Name = columnName, DataType = dataType });
+                    }
+                }
+                
+                dataRows.Add(row);
+                firstRow = false;
+            }
+            
+            // If no data rows, use headers with default String type
+            if (columns.Count == 0)
+            {
+                foreach (var header in headers)
+                {
+                    columns.Add(new PowerBIColumn { Name = header.Trim(), DataType = "String" });
+                }
+            }
+            
+            return (columns, dataRows);
+        }
+        catch
+        {
+            return (null, null);
         }
     }
 
