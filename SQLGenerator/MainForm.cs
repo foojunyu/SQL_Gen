@@ -93,38 +93,40 @@ public partial class MainForm : Form
             INNER JOIN sys.columns c ON t.object_id = c.object_id
             ORDER BY t.name, c.column_id";
 
-        using var command = new SqlCommand(query, connection);
-        using var reader = await command.ExecuteReaderAsync();
-
         tableSchemas.Clear();
         lstTables.Items.Clear();
 
-        while (await reader.ReadAsync())
+        // Scope the DataReader to ensure it's disposed before calling LoadForeignKeysAsync
+        using (var command = new SqlCommand(query, connection))
+        using (var reader = await command.ExecuteReaderAsync())
         {
-            string schemaName = reader.GetString(0);
-            string tableName = reader.GetString(1);
-            string fullTableName = $"{schemaName}.{tableName}";
-
-            if (!tableSchemas.ContainsKey(fullTableName))
+            while (await reader.ReadAsync())
             {
-                tableSchemas[fullTableName] = new List<ColumnInfo>();
-                lstTables.Items.Add(fullTableName);
+                string schemaName = reader.GetString(0);
+                string tableName = reader.GetString(1);
+                string fullTableName = $"{schemaName}.{tableName}";
+
+                if (!tableSchemas.ContainsKey(fullTableName))
+                {
+                    tableSchemas[fullTableName] = new List<ColumnInfo>();
+                    lstTables.Items.Add(fullTableName);
+                }
+
+                tableSchemas[fullTableName].Add(new ColumnInfo
+                {
+                    ColumnName = reader.GetString(2),
+                    DataType = reader.GetString(3),
+                    MaxLength = reader.GetInt16(4),
+                    Precision = reader.GetByte(5),
+                    Scale = reader.GetByte(6),
+                    IsNullable = reader.GetBoolean(7)
+                });
             }
-
-            tableSchemas[fullTableName].Add(new ColumnInfo
-            {
-                ColumnName = reader.GetString(2),
-                DataType = reader.GetString(3),
-                MaxLength = reader.GetInt16(4),
-                Precision = reader.GetByte(5),
-                Scale = reader.GetByte(6),
-                IsNullable = reader.GetBoolean(7)
-            });
-        }
+        } // DataReader is properly disposed here
 
         txtStatus.AppendText($"Loaded {tableSchemas.Count} tables.\r\n");
         
-        // Load foreign key relationships
+        // Load foreign key relationships - DataReader from above is now closed
         await LoadForeignKeysAsync(connection);
     }
 
