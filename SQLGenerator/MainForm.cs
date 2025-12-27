@@ -8,6 +8,7 @@ public partial class MainForm : Form
 {
     private string? connectionString;
     private Dictionary<string, List<ColumnInfo>> tableSchemas = new();
+    private Dictionary<string, List<ForeignKeyInfo>> foreignKeys = new(); // Store foreign key relationships
     private bool isConnecting = false;
     private List<Dictionary<string, string>>? csvData = null; // Store CSV data rows
     private string? csvFilePath = null; // Store the CSV file path
@@ -122,6 +123,56 @@ public partial class MainForm : Form
         }
 
         txtStatus.AppendText($"Loaded {tableSchemas.Count} tables.\r\n");
+        
+        // Load foreign key relationships
+        await LoadForeignKeysAsync(connection);
+    }
+
+    private async Task LoadForeignKeysAsync(SqlConnection connection)
+    {
+        txtStatus.AppendText("Loading foreign key relationships...\r\n");
+        
+        string query = @"
+            SELECT 
+                SCHEMA_NAME(fk.schema_id) + '.' + OBJECT_NAME(fk.parent_object_id) AS ParentTable,
+                COL_NAME(fkc.parent_object_id, fkc.parent_column_id) AS ParentColumn,
+                SCHEMA_NAME(ref_obj.schema_id) + '.' + OBJECT_NAME(fk.referenced_object_id) AS ReferencedTable,
+                COL_NAME(fkc.referenced_object_id, fkc.referenced_column_id) AS ReferencedColumn,
+                fk.name AS ConstraintName
+            FROM sys.foreign_keys fk
+            INNER JOIN sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id
+            INNER JOIN sys.objects ref_obj ON fk.referenced_object_id = ref_obj.object_id
+            ORDER BY ParentTable, ReferencedTable";
+
+        using var command = new SqlCommand(query, connection);
+        using var reader = await command.ExecuteReaderAsync();
+
+        foreignKeys.Clear();
+
+        while (await reader.ReadAsync())
+        {
+            string parentTable = reader.GetString(0);
+            string parentColumn = reader.GetString(1);
+            string referencedTable = reader.GetString(2);
+            string referencedColumn = reader.GetString(3);
+            string constraintName = reader.GetString(4);
+
+            if (!foreignKeys.ContainsKey(parentTable))
+            {
+                foreignKeys[parentTable] = new List<ForeignKeyInfo>();
+            }
+
+            foreignKeys[parentTable].Add(new ForeignKeyInfo
+            {
+                ParentTable = parentTable,
+                ParentColumn = parentColumn,
+                ReferencedTable = referencedTable,
+                ReferencedColumn = referencedColumn,
+                ConstraintName = constraintName
+            });
+        }
+
+        txtStatus.AppendText($"Loaded {foreignKeys.Values.Sum(list => list.Count)} foreign key relationships.\r\n");
     }
 
     private void btnGenerateSQL_Click(object sender, EventArgs e)
@@ -163,7 +214,27 @@ public partial class MainForm : Form
 
     private string GenerateSQLForPowerBI(List<PowerBIColumn> powerBIColumns)
     {
-        // Find the best matching table
+        // Try to find columns across multiple tables (multi-table scenario)
+        var tableColumnMappings = FindColumnsAcrossTables(powerBIColumns);
+        
+        if (tableColumnMappings.Count > 0)
+        {
+            var uniqueTables = tableColumnMappings.Select(m => m.TableName).Distinct().ToList();
+            
+            if (uniqueTables.Count > 1)
+            {
+                // Multi-table scenario - generate JOIN query
+                txtStatus.AppendText($"Detected columns from {uniqueTables.Count} tables. Generating JOIN query...\r\n");
+                return GenerateMultiTableSQL(powerBIColumns, tableColumnMappings);
+            }
+            else if (uniqueTables.Count == 1)
+            {
+                // Single table - use existing logic
+                return GenerateSQLForSpecificTable(uniqueTables[0], powerBIColumns);
+            }
+        }
+        
+        // Fallback to original logic
         string? selectedTable = lstTables.SelectedItem?.ToString();
         
         if (!string.IsNullOrEmpty(selectedTable) && tableSchemas.ContainsKey(selectedTable))
@@ -182,6 +253,244 @@ public partial class MainForm : Form
         
         // Generate generic SQL
         return SQLGeneratorUtils.GenerateGenericSQL(powerBIColumns);
+    }
+
+    private List<TableColumnMapping> FindColumnsAcrossTables(List<PowerBIColumn> powerBIColumns)
+    {
+        var mappings = new List<TableColumnMapping>();
+        
+        foreach (var pbCol in powerBIColumns)
+        {
+            // Try to find this column in any table
+            foreach (var table in tableSchemas)
+            {
+                var matchingColumn = FindMatchingColumn(table.Value, pbCol.Name);
+                if (matchingColumn != null)
+                {
+                    mappings.Add(new TableColumnMapping
+                    {
+                        TableName = table.Key,
+                        ColumnName = matchingColumn.ColumnName,
+                        CSVColumnName = pbCol.Name
+                    });
+                    break; // Found a match, move to next CSV column
+                }
+            }
+        }
+        
+        return mappings;
+    }
+
+    private string GenerateMultiTableSQL(List<PowerBIColumn> powerBIColumns, List<TableColumnMapping> mappings)
+    {
+        var sql = new System.Text.StringBuilder();
+        var uniqueTables = mappings.Select(m => m.TableName).Distinct().ToList();
+        
+        if (uniqueTables.Count == 0) return string.Empty;
+        
+        // Find join path between tables
+        var joinPath = FindJoinPath(uniqueTables);
+        
+        sql.AppendLine($"-- Multi-table SQL Query matching CSV structure");
+        sql.AppendLine($"-- Tables involved: {string.Join(", ", uniqueTables)}");
+        sql.AppendLine();
+        
+        // Add data validation if CSV data exists
+        if (csvData != null && csvData.Count > 0 && !string.IsNullOrEmpty(connectionString))
+        {
+            sql.AppendLine("-- Data Validation: Check if CSV values exist in database");
+            foreach (var mapping in mappings)
+            {
+                var schema = tableSchemas[mapping.TableName];
+                sql.AppendLine(GenerateDataValidationSQLForColumn(mapping.TableName, mapping.CSVColumnName, schema));
+            }
+            sql.AppendLine();
+        }
+        
+        // Generate SELECT clause
+        sql.AppendLine("-- Main SELECT query with JOINs");
+        sql.AppendLine("SELECT");
+        
+        var selectColumns = new List<string>();
+        foreach (var pbCol in powerBIColumns)
+        {
+            var mapping = mappings.FirstOrDefault(m => m.CSVColumnName == pbCol.Name);
+            if (mapping != null)
+            {
+                string tableAlias = GetTableAlias(mapping.TableName);
+                selectColumns.Add($"    {tableAlias}.[{mapping.ColumnName}] AS [{pbCol.Name}]");
+            }
+            else
+            {
+                selectColumns.Add($"    NULL AS [{pbCol.Name}] -- Column not found");
+            }
+        }
+        
+        sql.AppendLine(string.Join(",\r\n", selectColumns));
+        
+        // Generate FROM and JOIN clauses
+        if (joinPath.Count > 0)
+        {
+            string firstTable = joinPath[0].Item1;
+            sql.AppendLine($"FROM [{firstTable}] {GetTableAlias(firstTable)}");
+            
+            for (int i = 0; i < joinPath.Count; i++)
+            {
+                var (fromTable, toTable, fromCol, toCol) = joinPath[i];
+                string fromAlias = GetTableAlias(fromTable);
+                string toAlias = GetTableAlias(toTable);
+                sql.AppendLine($"INNER JOIN [{toTable}] {toAlias} ON {fromAlias}.[{fromCol}] = {toAlias}.[{toCol}]");
+            }
+        }
+        else if (uniqueTables.Count == 1)
+        {
+            sql.AppendLine($"FROM [{uniqueTables[0]}] {GetTableAlias(uniqueTables[0])}");
+        }
+        
+        // Add WHERE clause if CSV data exists
+        if (csvData != null && csvData.Count > 0)
+        {
+            sql.AppendLine(GenerateWhereClauseForMultiTable(mappings));
+        }
+        else
+        {
+            sql.AppendLine(";");
+        }
+        
+        // Add sample data query
+        sql.AppendLine();
+        sql.AppendLine("-- Sample data from main table");
+        sql.AppendLine($"SELECT TOP 5 * FROM [{uniqueTables[0]}];");
+        
+        return sql.ToString();
+    }
+
+    private List<(string, string, string, string)> FindJoinPath(List<string> tables)
+    {
+        // Find the optimal join path between tables using foreign keys
+        var joinPath = new List<(string, string, string, string)>();
+        
+        if (tables.Count <= 1) return joinPath;
+        
+        var connected = new HashSet<string> { tables[0] };
+        var remaining = new HashSet<string>(tables.Skip(1));
+        
+        while (remaining.Count > 0)
+        {
+            bool foundJoin = false;
+            
+            foreach (var connectedTable in connected.ToList())
+            {
+                // Check foreign keys from connected table
+                if (foreignKeys.ContainsKey(connectedTable))
+                {
+                    foreach (var fk in foreignKeys[connectedTable])
+                    {
+                        if (remaining.Contains(fk.ReferencedTable))
+                        {
+                            joinPath.Add((connectedTable, fk.ReferencedTable, fk.ParentColumn, fk.ReferencedColumn));
+                            connected.Add(fk.ReferencedTable);
+                            remaining.Remove(fk.ReferencedTable);
+                            foundJoin = true;
+                            break;
+                        }
+                    }
+                }
+                
+                // Check foreign keys TO connected table
+                foreach (var kvp in foreignKeys)
+                {
+                    if (remaining.Contains(kvp.Key))
+                    {
+                        foreach (var fk in kvp.Value)
+                        {
+                            if (fk.ReferencedTable == connectedTable)
+                            {
+                                joinPath.Add((connectedTable, kvp.Key, fk.ReferencedColumn, fk.ParentColumn));
+                                connected.Add(kvp.Key);
+                                remaining.Remove(kvp.Key);
+                                foundJoin = true;
+                                break;
+                            }
+                        }
+                        if (foundJoin) break;
+                    }
+                }
+                
+                if (foundJoin) break;
+            }
+            
+            if (!foundJoin)
+            {
+                // No direct relationship found, add remaining tables without join
+                txtStatus.AppendText($"Warning: Could not find join path for all tables. Some tables may not be properly connected.\r\n");
+                break;
+            }
+        }
+        
+        return joinPath;
+    }
+
+    private string GetTableAlias(string fullTableName)
+    {
+        // Generate simple alias from table name (e.g., "dbo.Customers" -> "c")
+        var parts = fullTableName.Split('.');
+        string tableName = parts.Length > 1 ? parts[1] : parts[0];
+        return tableName.Substring(0, 1).ToLower();
+    }
+
+    private string GenerateDataValidationSQLForColumn(string tableName, string csvColumnName, List<ColumnInfo> schema)
+    {
+        if (csvData == null || csvData.Count == 0) return string.Empty;
+        
+        var mapping = schema.FirstOrDefault(c => c.ColumnName.Equals(csvColumnName, StringComparison.OrdinalIgnoreCase));
+        if (mapping == null) return string.Empty;
+        
+        var uniqueValues = csvData
+            .Select(row => row.ContainsKey(csvColumnName) ? row[csvColumnName] : "")
+            .Where(v => !string.IsNullOrWhiteSpace(v))
+            .Distinct()
+            .Take(10)
+            .ToList();
+        
+        if (uniqueValues.Count > 0)
+        {
+            var valueList = uniqueValues.Select(v => $"'{v.Replace("'", "''")}'");
+            return $"SELECT DISTINCT [{mapping.ColumnName}] FROM [{tableName}] WHERE [{mapping.ColumnName}] IN ({string.Join(", ", valueList)});";
+        }
+        
+        return string.Empty;
+    }
+
+    private string GenerateWhereClauseForMultiTable(List<TableColumnMapping> mappings)
+    {
+        if (csvData == null || csvData.Count == 0) return ";";
+        
+        var whereConditions = new List<string>();
+        
+        foreach (var mapping in mappings)
+        {
+            var uniqueValues = csvData
+                .Select(row => row.ContainsKey(mapping.CSVColumnName) ? row[mapping.CSVColumnName] : "")
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Distinct()
+                .Take(20)
+                .ToList();
+            
+            if (uniqueValues.Count > 0 && uniqueValues.Count <= 20)
+            {
+                string tableAlias = GetTableAlias(mapping.TableName);
+                var valueList = uniqueValues.Select(v => $"'{v.Replace("'", "''")}'");
+                whereConditions.Add($"    {tableAlias}.[{mapping.ColumnName}] IN ({string.Join(", ", valueList)})");
+            }
+        }
+        
+        if (whereConditions.Count > 0)
+        {
+            return "WHERE\r\n" + string.Join(" OR\r\n", whereConditions) + ";";
+        }
+        
+        return ";";
     }
 
     private string? FindBestMatchingTable(List<PowerBIColumn> powerBIColumns)
@@ -686,4 +995,20 @@ public class PowerBIColumn
 {
     public string Name { get; set; } = string.Empty;
     public string? DataType { get; set; }
+}
+
+public class ForeignKeyInfo
+{
+    public string ParentTable { get; set; } = string.Empty;
+    public string ParentColumn { get; set; } = string.Empty;
+    public string ReferencedTable { get; set; } = string.Empty;
+    public string ReferencedColumn { get; set; } = string.Empty;
+    public string ConstraintName { get; set; } = string.Empty;
+}
+
+public class TableColumnMapping
+{
+    public string TableName { get; set; } = string.Empty;
+    public string ColumnName { get; set; } = string.Empty;
+    public string CSVColumnName { get; set; } = string.Empty;
 }

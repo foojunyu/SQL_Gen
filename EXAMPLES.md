@@ -162,6 +162,51 @@ If you don't want to use the full object format, you can use just an array:
 ]
 ```
 
+## Example 7: Multi-Table JOIN with Foreign Keys
+
+When CSV columns come from multiple related tables, the application automatically generates JOIN queries:
+
+1. Load a CSV with columns from different tables:
+```csv
+CustomerName,OrderDate,ProductName,Quantity,Price
+John Smith,2024-01-15,Widget A,5,29.99
+Jane Doe,2024-01-20,Widget B,3,49.99
+```
+
+2. Application detects columns from multiple tables:
+   - CustomerName → dbo.Customers
+   - OrderDate → dbo.Orders  
+   - ProductName, Price → dbo.Products
+   - Quantity → dbo.OrderDetails
+
+3. **Generated Multi-Table SQL with JOINs:**
+```sql
+-- Multi-table SQL Query matching CSV structure
+-- Tables involved: dbo.Customers, dbo.Orders, dbo.OrderDetails, dbo.Products
+
+-- Main SELECT query with JOINs
+SELECT
+    c.[CustomerName] AS [CustomerName],
+    o.[OrderDate] AS [OrderDate],
+    p.[ProductName] AS [ProductName],
+    d.[Quantity] AS [Quantity],
+    p.[Price] AS [Price]
+FROM [dbo.Customers] c
+INNER JOIN [dbo.Orders] o ON c.[CustomerID] = o.[CustomerID]
+INNER JOIN [dbo.OrderDetails] d ON o.[OrderID] = d.[OrderID]
+INNER JOIN [dbo.Products] p ON d.[ProductID] = p.[ProductID]
+WHERE
+    c.[CustomerName] IN ('John Smith', 'Jane Doe')
+;
+```
+
+**How it works:**
+- Application queries database metadata to discover foreign key relationships
+- Finds optimal join path between tables using foreign key constraints
+- Generates proper INNER JOIN statements with ON conditions
+- Maps CSV columns to correct tables and columns
+- Includes WHERE clauses with CSV data for filtering
+
 ## Tips and Best Practices
 
 1. **Test Connection First**: Always test your connection before generating SQL
