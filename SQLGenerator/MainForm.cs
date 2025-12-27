@@ -320,7 +320,21 @@ public partial class MainForm : Form
             if (mapping != null)
             {
                 string tableAlias = GetTableAlias(mapping.TableName);
-                selectColumns.Add($"    {tableAlias}.[{mapping.ColumnName}] AS [{pbCol.Name}]");
+                var columnInfo = tableSchemas[mapping.TableName].FirstOrDefault(c => c.ColumnName == mapping.ColumnName);
+                
+                // Use COALESCE for nullable columns with default value
+                string columnExpr;
+                if (columnInfo != null && columnInfo.IsNullable)
+                {
+                    string defaultValue = GetDefaultValueForColumn(columnInfo.DataType);
+                    columnExpr = $"    COALESCE({tableAlias}.[{mapping.ColumnName}], {defaultValue})";
+                }
+                else
+                {
+                    columnExpr = $"    {tableAlias}.[{mapping.ColumnName}]";
+                }
+                
+                selectColumns.Add($"{columnExpr} AS [{pbCol.Name}]");
             }
             else
             {
@@ -341,7 +355,8 @@ public partial class MainForm : Form
                 var (fromTable, toTable, fromCol, toCol) = joinPath[i];
                 string fromAlias = GetTableAlias(fromTable);
                 string toAlias = GetTableAlias(toTable);
-                sql.AppendLine($"INNER JOIN [{toTable}] {toAlias} ON {fromAlias}.[{fromCol}] = {toAlias}.[{toCol}]");
+                // Use LEFT JOIN to preserve all rows from the main table
+                sql.AppendLine($"LEFT JOIN [{toTable}] {toAlias} ON {fromAlias}.[{fromCol}] = {toAlias}.[{toCol}]");
             }
         }
         else if (uniqueTables.Count == 1)
@@ -439,6 +454,41 @@ public partial class MainForm : Form
         var parts = fullTableName.Split('.');
         string tableName = parts.Length > 1 ? parts[1] : parts[0];
         return tableName.Substring(0, 1).ToLower();
+    }
+
+    private string GetDefaultValueForColumn(string dataType)
+    {
+        // Return appropriate default value based on SQL data type
+        var normalizedType = dataType.ToLower();
+        
+        // String types - use '#' as default (matching user's example)
+        if (normalizedType.Contains("char") || normalizedType.Contains("text"))
+        {
+            return "'#'";
+        }
+        
+        // Numeric types - use 0
+        if (normalizedType.Contains("int") || normalizedType.Contains("decimal") || 
+            normalizedType.Contains("numeric") || normalizedType.Contains("float") || 
+            normalizedType.Contains("real") || normalizedType.Contains("money"))
+        {
+            return "0";
+        }
+        
+        // Date types - use a default date
+        if (normalizedType.Contains("date") || normalizedType.Contains("time"))
+        {
+            return "'1900-01-01'";
+        }
+        
+        // Boolean - use 0 (false)
+        if (normalizedType == "bit")
+        {
+            return "0";
+        }
+        
+        // For other types, use empty string
+        return "''";
     }
 
     private string GenerateDataValidationSQLForColumn(string tableName, string csvColumnName, List<ColumnInfo> schema)
@@ -549,7 +599,18 @@ public partial class MainForm : Form
             
             if (matchingColumn != null)
             {
-                string columnExpr = $"    [{matchingColumn.ColumnName}]";
+                string columnExpr;
+                
+                // Use COALESCE for nullable columns with default value
+                if (matchingColumn.IsNullable)
+                {
+                    string defaultValue = GetDefaultValueForColumn(matchingColumn.DataType);
+                    columnExpr = $"    COALESCE([{matchingColumn.ColumnName}], {defaultValue})";
+                }
+                else
+                {
+                    columnExpr = $"    [{matchingColumn.ColumnName}]";
+                }
                 
                 // Add type conversion if needed
                 if (!string.IsNullOrEmpty(pbCol.DataType))
@@ -557,7 +618,16 @@ public partial class MainForm : Form
                     string sqlType = SQLGeneratorUtils.MapPowerBIToSQLType(pbCol.DataType);
                     if (!SQLGeneratorUtils.AreTypesCompatible(matchingColumn.DataType, sqlType))
                     {
-                        columnExpr = $"    CAST([{matchingColumn.ColumnName}] AS {sqlType})";
+                        // If we already have COALESCE, wrap the whole expression in CAST
+                        if (matchingColumn.IsNullable)
+                        {
+                            string defaultValue = GetDefaultValueForColumn(matchingColumn.DataType);
+                            columnExpr = $"    CAST(COALESCE([{matchingColumn.ColumnName}], {defaultValue}) AS {sqlType})";
+                        }
+                        else
+                        {
+                            columnExpr = $"    CAST([{matchingColumn.ColumnName}] AS {sqlType})";
+                        }
                     }
                 }
                 
