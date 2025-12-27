@@ -600,11 +600,17 @@ public partial class MainForm : Form
             if (matchingColumn != null)
             {
                 string columnExpr;
+                string? defaultValue = null;
+                
+                // Get default value for nullable columns
+                if (matchingColumn.IsNullable)
+                {
+                    defaultValue = GetDefaultValueForColumn(matchingColumn.DataType);
+                }
                 
                 // Use COALESCE for nullable columns with default value
                 if (matchingColumn.IsNullable)
                 {
-                    string defaultValue = GetDefaultValueForColumn(matchingColumn.DataType);
                     columnExpr = $"    COALESCE([{matchingColumn.ColumnName}], {defaultValue})";
                 }
                 else
@@ -621,7 +627,6 @@ public partial class MainForm : Form
                         // If we already have COALESCE, wrap the whole expression in CAST
                         if (matchingColumn.IsNullable)
                         {
-                            string defaultValue = GetDefaultValueForColumn(matchingColumn.DataType);
                             columnExpr = $"    CAST(COALESCE([{matchingColumn.ColumnName}], {defaultValue}) AS {sqlType})";
                         }
                         else
