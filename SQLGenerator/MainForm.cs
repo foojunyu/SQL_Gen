@@ -6,6 +6,10 @@ namespace SQLGenerator;
 
 public partial class MainForm : Form
 {
+    // Constants for default values
+    private const string DEFAULT_TABLE_ALIAS = "t";
+    private const string DEFAULT_STRING_VALUE = "'#'";
+    
     private string? connectionString;
     private Dictionary<string, List<ColumnInfo>> tableSchemas = new();
     private Dictionary<string, List<ForeignKeyInfo>> foreignKeys = new(); // Store foreign key relationships
@@ -578,7 +582,7 @@ public partial class MainForm : Form
         // Generate simple alias from table name (e.g., "dbo.Customers" -> "c")
         if (string.IsNullOrWhiteSpace(fullTableName))
         {
-            return "t"; // Default alias for empty table names
+            return DEFAULT_TABLE_ALIAS; // Default alias for empty table names
         }
         
         var parts = fullTableName.Split('.');
@@ -586,7 +590,7 @@ public partial class MainForm : Form
         
         if (string.IsNullOrWhiteSpace(tableName))
         {
-            return "t"; // Default alias if table name is empty after split
+            return DEFAULT_TABLE_ALIAS; // Default alias if table name is empty after split
         }
         
         return tableName.Substring(0, 1).ToLower();
@@ -600,7 +604,7 @@ public partial class MainForm : Form
         // String types - use '#' as default (matching user's example)
         if (normalizedType.Contains("char") || normalizedType.Contains("text"))
         {
-            return "'#'";
+            return DEFAULT_STRING_VALUE;
         }
         
         // Numeric types - use 0
