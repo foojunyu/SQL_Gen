@@ -29,25 +29,58 @@ After: BFS finds paths through intermediates
   A → B? ✓  B → C? ✓  → SUCCESS: A → B → C
 ```
 
-### 2. Key Improvements
+### 2. Star Schema Optimization (Azure Data Warehouse)
 
-#### a) FindPathThroughIntermediateTables()
+**Problem**: In star schemas, dimension tables don't connect to each other - only to fact tables. Starting from the wrong table causes path-finding failures.
+
+**Solution**: Implemented `IdentifyFactTable()` method that:
+1. **Detects fact tables** using naming patterns (`TBL_`, `FACT_` prefixes)
+2. **Analyzes foreign keys** to find central hub tables
+3. **Prioritizes fact tables** as the starting point for JOIN paths
+
+**Example**:
+```
+Star Schema:
+  TBL_BE_F_FG_YIELD (fact table - central hub)
+    ├─→ Facility (dimension)
+    ├─→ Product (dimension)
+    ├─→ OperationFrom (dimension)
+    └─→ Date (dimension - no FK, needs manual join)
+
+Algorithm now starts from TBL_BE_F_FG_YIELD and connects all dimensions radiating from it.
+```
+
+**Benefits**:
+- ✅ Correctly handles Azure Data Warehouse star schemas
+- ✅ Identifies `dbo.TBL*` tables as fact tables
+- ✅ Generates optimal JOIN order (fact → dimensions)
+- ✅ Logs fact table identification for transparency
+
+### 3. Key Improvements
+
+#### a) IdentifyFactTable() - NEW
+- Detects fact tables by naming convention (TBL_, FACT_)
+- Counts foreign keys to identify central tables
+- Provides fallback strategies for complex schemas
+
+#### b) FindPathThroughIntermediateTables()
 - Attempts to find connections through bridge tables
 - Iterates through all connected and remaining table combinations
 - Updates the join path with all necessary intermediate tables
 
-#### b) FindShortestPath()
+#### c) FindShortestPath()
 - Uses BFS to explore the table relationship graph
 - Finds the shortest connection path between any two tables
 - Handles bidirectional relationships (A→B and B→A)
 - Prevents cycles by tracking visited tables
 
-#### c) Enhanced Error Handling
+#### d) Enhanced Error Handling
 - Specific error messages listing which tables cannot be connected
 - Generates valid SQL even when some tables can't be joined
 - Adds commented TODO placeholders for manual intervention
+- Detects dimension tables and suggests date-based JOINs
 
-### 3. Code Quality Enhancements
+### 4. Code Quality Enhancements
 
 - **Safety Guards**: Added null/empty checks in `GetTableAlias()` to prevent exceptions
 - **Constants**: Extracted magic strings to named constants for maintainability
