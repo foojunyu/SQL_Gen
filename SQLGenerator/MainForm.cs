@@ -433,8 +433,13 @@ public partial class MainForm : Form
         if (tables.Count <= 1) return joinPath;
         
         var targetTables = new HashSet<string>(tables);
-        var connected = new HashSet<string> { tables[0] };
-        var remaining = new HashSet<string>(tables.Skip(1));
+        
+        // Star schema optimization: Prioritize fact tables (typically contain "TBL" or "FACT")
+        // Fact tables are central tables with FKs to dimension tables
+        string startTable = IdentifyFactTable(tables);
+        
+        var connected = new HashSet<string> { startTable };
+        var remaining = new HashSet<string>(tables.Where(t => t != startTable));
         
         while (remaining.Count > 0)
         {
@@ -504,6 +509,52 @@ public partial class MainForm : Form
         }
         
         return joinPath;
+    }
+    
+    /// <summary>
+    /// Identifies the fact table in a star schema. Fact tables typically:
+    /// 1. Contain "TBL" or "FACT" in their name (Azure Data Warehouse convention)
+    /// 2. Have foreign keys to multiple dimension tables
+    /// 3. Contain the most foreign keys
+    /// </summary>
+    private string IdentifyFactTable(List<string> tables)
+    {
+        // Strategy 1: Look for tables with "TBL" or "FACT" prefix (common in Azure DW)
+        var factTableCandidates = tables.Where(t => 
+            t.Contains("TBL_", StringComparison.OrdinalIgnoreCase) || 
+            t.Contains("FACT_", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("TBL", StringComparison.OrdinalIgnoreCase) ||
+            t.StartsWith("FACT", StringComparison.OrdinalIgnoreCase)).ToList();
+        
+        if (factTableCandidates.Count == 1)
+        {
+            txtStatus.AppendText($"Identified fact table: {factTableCandidates[0]} (star schema optimization)\r\n");
+            return factTableCandidates[0];
+        }
+        
+        if (factTableCandidates.Count > 1)
+        {
+            // Multiple fact table candidates - choose the one with most foreign keys
+            var bestCandidate = factTableCandidates
+                .OrderByDescending(t => foreignKeys.ContainsKey(t) ? foreignKeys[t].Count : 0)
+                .First();
+            txtStatus.AppendText($"Identified fact table: {bestCandidate} (star schema optimization)\r\n");
+            return bestCandidate;
+        }
+        
+        // Strategy 2: Choose table with most foreign keys (likely the fact table)
+        var tableWithMostFKs = tables
+            .OrderByDescending(t => foreignKeys.ContainsKey(t) ? foreignKeys[t].Count : 0)
+            .First();
+        
+        if (foreignKeys.ContainsKey(tableWithMostFKs) && foreignKeys[tableWithMostFKs].Count > 0)
+        {
+            txtStatus.AppendText($"Identified fact table: {tableWithMostFKs} (most foreign keys)\r\n");
+            return tableWithMostFKs;
+        }
+        
+        // Fallback: Use first table
+        return tables[0];
     }
     
     private bool FindPathThroughIntermediateTables(
