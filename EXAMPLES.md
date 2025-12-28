@@ -186,15 +186,15 @@ Jane Doe,2024-01-20,Widget B,3,49.99
 
 -- Main SELECT query with JOINs
 SELECT
-    c.[CustomerName] AS [CustomerName],
+    COALESCE(c.[CustomerName], '#') AS [CustomerName],
     o.[OrderDate] AS [OrderDate],
-    p.[ProductName] AS [ProductName],
+    COALESCE(p.[ProductName], '#') AS [ProductName],
     d.[Quantity] AS [Quantity],
     p.[Price] AS [Price]
 FROM [dbo.Customers] c
-INNER JOIN [dbo.Orders] o ON c.[CustomerID] = o.[CustomerID]
-INNER JOIN [dbo.OrderDetails] d ON o.[OrderID] = d.[OrderID]
-INNER JOIN [dbo.Products] p ON d.[ProductID] = p.[ProductID]
+LEFT JOIN [dbo.Orders] o ON c.[CustomerID] = o.[CustomerID]
+LEFT JOIN [dbo.OrderDetails] d ON o.[OrderID] = d.[OrderID]
+LEFT JOIN [dbo.Products] p ON d.[ProductID] = p.[ProductID]
 WHERE
     c.[CustomerName] IN ('John Smith', 'Jane Doe')
 ;
@@ -202,10 +202,61 @@ WHERE
 
 **How it works:**
 - Application queries database metadata to discover foreign key relationships
-- Finds optimal join path between tables using foreign key constraints
-- Generates proper INNER JOIN statements with ON conditions
+- Finds optimal join path between tables using BFS algorithm (handles indirect paths)
+- Generates proper LEFT JOIN statements with ON conditions to preserve all rows
+- Uses COALESCE for nullable columns with '#' as default value
 - Maps CSV columns to correct tables and columns
 - Includes WHERE clauses with CSV data for filtering
+
+**Pattern matches user reference SQL:**
+```sql
+-- Similar to this pattern:
+FROM dbo.MainTable AS m
+LEFT JOIN dbo.RelatedTable1 AS r1 ON m.Key1 = r1.Key1
+LEFT JOIN dbo.RelatedTable2 AS r2 ON m.Key2 = r2.Key2
+```
+
+## Example 8: Production Data with Multiple JOINs (User Reference)
+
+For complex manufacturing or production data with multiple related tables:
+
+**CSV Input:**
+```csv
+Month,Facility,Family,Owner,Sub Family,Week,Operation Name,Operation Code,IN
+202401,FAB1,ProductA,John,SubA,2024-01,Assembly,OP001,1000
+202401,FAB2,ProductB,Jane,SubB,2024-02,Testing,OP002,500
+```
+
+**Generated SQL (matches user reference pattern):**
+```sql
+-- Multi-table SQL Query matching CSV structure
+-- Tables involved: dbo.TBL_BE_F_FG_YIELD, dbo.OperationFrom, dbo.Product, dbo.Facility
+
+SELECT
+    COALESCE(y.[Month], '#') AS [Month],
+    COALESCE(f.[Facility], '#') AS [Facility],
+    COALESCE(p.[Family], '#') AS [Family],
+    COALESCE(y.[OWNER], '#') AS [Owner],
+    COALESCE(p.[SubFamily], '#') AS [Sub Family],
+    COALESCE(y.[WORKWEEK], '#') AS [Week],
+    COALESCE(op.[OperName], '') AS [Operation Name],
+    COALESCE(op.[OperNum], '') AS [Operation Code],
+    y.[IN_QTY] AS [IN]
+FROM [dbo.TBL_BE_F_FG_YIELD] y
+LEFT JOIN [dbo.OperationFrom] op ON y.[LINKOPERFROM] = op.[linkoper]
+LEFT JOIN [dbo.Product] p ON y.[LINKPRODUCT] = p.[linkproduct]
+LEFT JOIN [dbo.Facility] f ON y.[FACILITY_FROM] = f.[Facility]
+WHERE y.[LINKLOT] IS NOT NULL;
+```
+
+**Key Features:**
+- Uses COALESCE with '#' for string nulls (manufacturing convention)
+- Uses COALESCE with '' for empty strings (operation names)
+- Preserves all rows from main yield table with LEFT JOINs
+- Short table aliases (y, op, p, f) for readability
+- Foreign key joins on link columns (LINKOPERFROM, LINKPRODUCT, etc.)
+
+
 
 ## Tips and Best Practices
 
