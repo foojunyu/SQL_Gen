@@ -349,10 +349,12 @@ public partial class MainForm : Form
         sql.AppendLine(string.Join(",\r\n", selectColumns));
         
         // Generate FROM and JOIN clauses
+        var connectedTables = new HashSet<string>();
         if (joinPath.Count > 0)
         {
             string firstTable = joinPath[0].Item1;
             sql.AppendLine($"FROM [{firstTable}] {GetTableAlias(firstTable)}");
+            connectedTables.Add(firstTable);
             
             for (int i = 0; i < joinPath.Count; i++)
             {
@@ -361,6 +363,32 @@ public partial class MainForm : Form
                 string toAlias = GetTableAlias(toTable);
                 // Use LEFT JOIN to preserve all rows from the main table
                 sql.AppendLine($"LEFT JOIN [{toTable}] {toAlias} ON {fromAlias}.[{fromCol}] = {toAlias}.[{toCol}]");
+                connectedTables.Add(toTable);
+            }
+            
+            // Check for unconnected tables and add helpful comments
+            var unconnectedTables = uniqueTables.Where(t => !connectedTables.Contains(t)).ToList();
+            if (unconnectedTables.Count > 0)
+            {
+                sql.AppendLine();
+                sql.AppendLine("-- WARNING: The following tables could not be connected via foreign keys:");
+                foreach (var table in unconnectedTables)
+                {
+                    string tableAlias = GetTableAlias(table);
+                    sql.AppendLine($"-- TODO: Add JOIN condition for [{table}] {tableAlias}");
+                    
+                    // Check if this might be a date dimension table
+                    if (table.ToLower().Contains("date") || table.ToLower().Contains("time") || 
+                        table.ToLower().Contains("calendar") || table.ToLower().Contains("dim"))
+                    {
+                        sql.AppendLine($"-- HINT: This appears to be a dimension table. Consider joining on date/time columns:");
+                        sql.AppendLine($"-- LEFT JOIN [{table}] {tableAlias} ON CAST({GetTableAlias(firstTable)}.[YourDateColumn] AS DATE) = {tableAlias}.[DateKey]");
+                    }
+                    else
+                    {
+                        sql.AppendLine($"-- LEFT JOIN [{table}] {tableAlias} ON {GetTableAlias(firstTable)}.[YourKeyColumn] = {tableAlias}.[KeyColumn]");
+                    }
+                }
             }
         }
         else if (uniqueTables.Count == 1)
