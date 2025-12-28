@@ -7,6 +7,9 @@ namespace SQLGenerator;
 /// </summary>
 public static class SQLGeneratorUtils
 {
+    // Default data type when type is not specified or unknown
+    private const string DefaultDataType = "String";
+    
     /// <summary>
     /// Maps Power BI data types to SQL Server data types
     /// </summary>
@@ -132,7 +135,7 @@ public static class SQLGeneratorUtils
         
         foreach (var pbCol in powerBIColumns)
         {
-            string sqlType = MapPowerBIToSQLType(pbCol.DataType ?? "String");
+            string sqlType = MapPowerBIToSQLType(pbCol.DataType ?? DefaultDataType);
             selectColumns.Add($"    CAST(NULL AS {sqlType}) AS [{pbCol.Name}]");
         }
         

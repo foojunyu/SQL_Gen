@@ -576,8 +576,19 @@ public partial class MainForm : Form
     private string GetTableAlias(string fullTableName)
     {
         // Generate simple alias from table name (e.g., "dbo.Customers" -> "c")
+        if (string.IsNullOrWhiteSpace(fullTableName))
+        {
+            return "t"; // Default alias for empty table names
+        }
+        
         var parts = fullTableName.Split('.');
         string tableName = parts.Length > 1 ? parts[1] : parts[0];
+        
+        if (string.IsNullOrWhiteSpace(tableName))
+        {
+            return "t"; // Default alias if table name is empty after split
+        }
+        
         return tableName.Substring(0, 1).ToLower();
     }
 
@@ -632,7 +643,7 @@ public partial class MainForm : Form
         
         if (uniqueValues.Count > 0)
         {
-            var valueList = uniqueValues.Select(v => $"'{v.Replace("'", "''")}'");
+            var valueList = uniqueValues.Select(v => $"'{EscapeSQLStringLiteral(v)}'");
             return $"SELECT DISTINCT [{mapping.ColumnName}] FROM [{tableName}] WHERE [{mapping.ColumnName}] IN ({string.Join(", ", valueList)});";
         }
         
@@ -657,7 +668,7 @@ public partial class MainForm : Form
             if (uniqueValues.Count > 0 && uniqueValues.Count <= 20)
             {
                 string tableAlias = GetTableAlias(mapping.TableName);
-                var valueList = uniqueValues.Select(v => $"'{v.Replace("'", "''")}'");
+                var valueList = uniqueValues.Select(v => $"'{EscapeSQLStringLiteral(v)}'");
                 whereConditions.Add($"    {tableAlias}.[{mapping.ColumnName}] IN ({string.Join(", ", valueList)})");
             }
         }
@@ -817,7 +828,7 @@ public partial class MainForm : Form
                 sql.AppendLine($"-- Check if values for '{pbCol.Name}' exist:");
                 sql.Append($"SELECT DISTINCT [{matchingColumn.ColumnName}] FROM [{tableName}] WHERE [{matchingColumn.ColumnName}] IN (");
                 
-                var valueList = uniqueValues.Select(v => $"'{v.Replace("'", "''")}'");
+                var valueList = uniqueValues.Select(v => $"'{EscapeSQLStringLiteral(v)}'");
                 sql.Append(string.Join(", ", valueList));
                 sql.AppendLine(");");
             }
@@ -848,7 +859,7 @@ public partial class MainForm : Form
             
             if (uniqueValues.Count > 0 && uniqueValues.Count <= 20) // Only add if reasonable number
             {
-                var valueList = uniqueValues.Select(v => $"'{v.Replace("'", "''")}'");
+                var valueList = uniqueValues.Select(v => $"'{EscapeSQLStringLiteral(v)}'");
                 whereConditions.Add($"    [{matchingColumn.ColumnName}] IN ({string.Join(", ", valueList)})");
             }
         }
@@ -898,6 +909,21 @@ public partial class MainForm : Form
                    .Replace("_", "")
                    .Replace("-", "")
                    .Replace(".", "");
+    }
+
+    /// <summary>
+    /// Escapes a string value for safe inclusion in generated SQL string literals.
+    /// This is used for SQL generation (not execution), where the user will review
+    /// the SQL before running it. Single quotes are escaped according to SQL standard.
+    /// NOTE: Generated SQL should always be reviewed before execution.
+    /// </summary>
+    private string EscapeSQLStringLiteral(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        
+        // Escape single quotes per SQL standard (replace ' with '')
+        return value.Replace("'", "''");
     }
 
     private void btnCopy_Click(object sender, EventArgs e)
