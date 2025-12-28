@@ -294,8 +294,8 @@ public partial class MainForm : Form
         
         if (uniqueTables.Count == 0) return string.Empty;
         
-        // Identify the fact table for star schema optimization
-        string factTable = uniqueTables.Count > 1 ? IdentifyFactTable(uniqueTables) : uniqueTables[0];
+        // Identify the fact table for star schema optimization (handles all cases)
+        string factTable = IdentifyFactTable(uniqueTables);
         
         // Find join path between tables (starts from fact table)
         var joinPath = FindJoinPath(uniqueTables);
@@ -405,9 +405,9 @@ public partial class MainForm : Form
             // Multiple tables but no join path found - use fact table as base
             sql.AppendLine("-- WARNING: No join path found between tables. Please add appropriate JOIN conditions.");
             sql.AppendLine($"FROM [{factTable}] {GetTableAlias(factTable)}");
-            for (int i = 1; i < uniqueTables.Count; i++)
+            for (int i = 0; i < uniqueTables.Count; i++)
             {
-                if (uniqueTables[i] != factTable)
+                if (!string.Equals(uniqueTables[i], factTable, StringComparison.OrdinalIgnoreCase))
                 {
                     sql.AppendLine($"-- TODO: Add JOIN condition for [{uniqueTables[i]}] {GetTableAlias(uniqueTables[i])}");
                     sql.AppendLine($"-- CROSS JOIN [{uniqueTables[i]}] {GetTableAlias(uniqueTables[i])} -- Uncomment and add proper JOIN condition");
