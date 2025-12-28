@@ -389,6 +389,7 @@ public partial class MainForm : Form
         
         if (tables.Count <= 1) return joinPath;
         
+        var targetTables = new HashSet<string>(tables);
         var connected = new HashSet<string> { tables[0] };
         var remaining = new HashSet<string>(tables.Skip(1));
         
@@ -396,6 +397,7 @@ public partial class MainForm : Form
         {
             bool foundJoin = false;
             
+            // Try direct connections first
             foreach (var connectedTable in connected.ToList())
             {
                 // Check foreign keys from connected table
@@ -412,6 +414,7 @@ public partial class MainForm : Form
                             break;
                         }
                     }
+                    if (foundJoin) break;
                 }
                 
                 // Check foreign keys TO connected table
@@ -437,15 +440,126 @@ public partial class MainForm : Form
                 if (foundJoin) break;
             }
             
+            // If no direct connection found, try to find path through intermediate tables
             if (!foundJoin)
             {
-                // No direct relationship found, add remaining tables without join
-                txtStatus.AppendText($"Warning: Could not find join path for all tables. Some tables may not be properly connected.\r\n");
+                var pathFound = FindPathThroughIntermediateTables(connected, remaining, targetTables, ref joinPath);
+                if (pathFound)
+                {
+                    foundJoin = true;
+                }
+            }
+            
+            if (!foundJoin)
+            {
+                // Could not find any path to connect remaining tables
+                var remainingList = string.Join(", ", remaining);
+                txtStatus.AppendText($"Warning: Could not find join path to connect tables: {remainingList}\r\n");
+                txtStatus.AppendText("These tables may need to be queried separately or joined manually.\r\n");
                 break;
             }
         }
         
         return joinPath;
+    }
+    
+    private bool FindPathThroughIntermediateTables(
+        HashSet<string> connected, 
+        HashSet<string> remaining, 
+        HashSet<string> targetTables,
+        ref List<(string, string, string, string)> joinPath)
+    {
+        // Use BFS to find a path from any connected table to any remaining table
+        // through intermediate tables
+        
+        foreach (var startTable in connected.ToList())
+        {
+            foreach (var targetTable in remaining.ToList())
+            {
+                var path = FindShortestPath(startTable, targetTable, targetTables);
+                if (path != null && path.Count > 0)
+                {
+                    // Add all joins in the path
+                    foreach (var join in path)
+                    {
+                        joinPath.Add(join);
+                        connected.Add(join.Item2); // Add the target table of each join
+                    }
+                    remaining.Remove(targetTable);
+                    
+                    txtStatus.AppendText($"Found indirect join path from {startTable} to {targetTable} through intermediate tables.\r\n");
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    private List<(string, string, string, string)>? FindShortestPath(string startTable, string targetTable, HashSet<string> targetTables)
+    {
+        // BFS to find shortest path between two tables
+        var queue = new Queue<(string table, List<(string, string, string, string)> path)>();
+        var visited = new HashSet<string>();
+        
+        queue.Enqueue((startTable, new List<(string, string, string, string)>()));
+        visited.Add(startTable);
+        
+        while (queue.Count > 0)
+        {
+            var (currentTable, currentPath) = queue.Dequeue();
+            
+            // Check foreign keys from current table
+            if (foreignKeys.ContainsKey(currentTable))
+            {
+                foreach (var fk in foreignKeys[currentTable])
+                {
+                    if (fk.ReferencedTable == targetTable)
+                    {
+                        // Found the target!
+                        var newPath = new List<(string, string, string, string)>(currentPath);
+                        newPath.Add((currentTable, fk.ReferencedTable, fk.ParentColumn, fk.ReferencedColumn));
+                        return newPath;
+                    }
+                    
+                    if (!visited.Contains(fk.ReferencedTable) && tableSchemas.ContainsKey(fk.ReferencedTable))
+                    {
+                        visited.Add(fk.ReferencedTable);
+                        var newPath = new List<(string, string, string, string)>(currentPath);
+                        newPath.Add((currentTable, fk.ReferencedTable, fk.ParentColumn, fk.ReferencedColumn));
+                        queue.Enqueue((fk.ReferencedTable, newPath));
+                    }
+                }
+            }
+            
+            // Check foreign keys TO current table
+            foreach (var kvp in foreignKeys)
+            {
+                foreach (var fk in kvp.Value)
+                {
+                    if (fk.ReferencedTable == currentTable)
+                    {
+                        if (kvp.Key == targetTable)
+                        {
+                            // Found the target!
+                            var newPath = new List<(string, string, string, string)>(currentPath);
+                            newPath.Add((currentTable, kvp.Key, fk.ReferencedColumn, fk.ParentColumn));
+                            return newPath;
+                        }
+                        
+                        if (!visited.Contains(kvp.Key) && tableSchemas.ContainsKey(kvp.Key))
+                        {
+                            visited.Add(kvp.Key);
+                            var newPath = new List<(string, string, string, string)>(currentPath);
+                            newPath.Add((currentTable, kvp.Key, fk.ReferencedColumn, fk.ParentColumn));
+                            queue.Enqueue((kvp.Key, newPath));
+                        }
+                    }
+                }
+            }
+        }
+        
+        return null; // No path found
     }
 
     private string GetTableAlias(string fullTableName)
