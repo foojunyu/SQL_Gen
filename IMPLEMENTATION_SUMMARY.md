@@ -151,6 +151,49 @@ All dependencies have been verified against GitHub Advisory Database:
 | Boolean, Bool | BIT |
 | Binary | VARBINARY(MAX) |
 
+## Recent Enhancements (JOIN Path Finding)
+
+### Issue Fixed: Inaccurate SQL JOIN Generation
+
+**Problem**: When columns from a CSV or Power BI table came from 3 or more database tables without direct foreign key relationships, the application would show:
+```
+Warning: Could not find join path for all tables. Some tables may not be properly connected.
+```
+And the generated SQL would be incomplete or missing JOIN clauses.
+
+**Solution**: Implemented advanced graph traversal algorithm with the following improvements:
+
+1. **Breadth-First Search (BFS) Algorithm**
+   - Finds shortest paths between tables through intermediate tables
+   - Previously only looked for direct foreign key connections
+   - Now searches through the entire relationship graph
+
+2. **Indirect Path Detection**
+   - Automatically includes necessary intermediate tables in the join path
+   - Example: If Table A → Table B → Table C, but only A and C have columns in the CSV, Table B is automatically included in the JOIN
+
+3. **Enhanced Error Reporting**
+   - Specific messages about which tables cannot be connected
+   - Informative logging when indirect paths are found
+   - Clear guidance when manual JOIN conditions are needed
+
+4. **Graceful Degradation**
+   - When no join path exists, generates SQL with commented placeholders
+   - Provides TODO comments for manual JOIN conditions
+   - Prevents incomplete or invalid SQL generation
+
+### New Methods Added
+
+- `FindPathThroughIntermediateTables()` - Searches for indirect connection paths
+- `FindShortestPath()` - BFS implementation to find optimal join sequence
+
+### Impact
+
+- ✅ More accurate SQL generation for complex multi-table scenarios
+- ✅ Better handling of transitive relationships
+- ✅ Clearer error messages and warnings
+- ✅ Reduced need for manual SQL editing
+
 ## Usage Example
 
 1. Start application

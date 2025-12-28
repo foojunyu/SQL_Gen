@@ -363,6 +363,17 @@ public partial class MainForm : Form
         {
             sql.AppendLine($"FROM [{uniqueTables[0]}] {GetTableAlias(uniqueTables[0])}");
         }
+        else
+        {
+            // Multiple tables but no join path found - generate placeholder with warning
+            sql.AppendLine("-- WARNING: No join path found between tables. Please add appropriate JOIN conditions.");
+            sql.AppendLine($"FROM [{uniqueTables[0]}] {GetTableAlias(uniqueTables[0])}");
+            for (int i = 1; i < uniqueTables.Count; i++)
+            {
+                sql.AppendLine($"-- TODO: Add JOIN condition for [{uniqueTables[i]}] {GetTableAlias(uniqueTables[i])}");
+                sql.AppendLine($"-- CROSS JOIN [{uniqueTables[i]}] {GetTableAlias(uniqueTables[i])} -- Uncomment and add proper JOIN condition");
+            }
+        }
         
         // Add WHERE clause if CSV data exists
         if (csvData != null && csvData.Count > 0)
