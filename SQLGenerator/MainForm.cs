@@ -294,7 +294,10 @@ public partial class MainForm : Form
         
         if (uniqueTables.Count == 0) return string.Empty;
         
-        // Find join path between tables
+        // Identify the fact table for star schema optimization
+        string factTable = uniqueTables.Count > 1 ? IdentifyFactTable(uniqueTables) : uniqueTables[0];
+        
+        // Find join path between tables (starts from fact table)
         var joinPath = FindJoinPath(uniqueTables);
         
         sql.AppendLine($"-- Multi-table SQL Query matching CSV structure");
@@ -352,9 +355,9 @@ public partial class MainForm : Form
         var connectedTables = new HashSet<string>();
         if (joinPath.Count > 0)
         {
-            string firstTable = joinPath[0].Item1;
-            sql.AppendLine($"FROM [{firstTable}] {GetTableAlias(firstTable)}");
-            connectedTables.Add(firstTable);
+            // Use the identified fact table as the base table in FROM clause
+            sql.AppendLine($"FROM [{factTable}] {GetTableAlias(factTable)}");
+            connectedTables.Add(factTable);
             
             for (int i = 0; i < joinPath.Count; i++)
             {
@@ -378,15 +381,17 @@ public partial class MainForm : Form
                     sql.AppendLine($"-- TODO: Add JOIN condition for [{table}] {tableAlias}");
                     
                     // Check if this might be a date dimension table
-                    if (table.ToLower().Contains("date") || table.ToLower().Contains("time") || 
-                        table.ToLower().Contains("calendar") || table.ToLower().Contains("dim"))
+                    if (table.Contains("date", StringComparison.OrdinalIgnoreCase) || 
+                        table.Contains("time", StringComparison.OrdinalIgnoreCase) || 
+                        table.Contains("calendar", StringComparison.OrdinalIgnoreCase) || 
+                        table.Contains("dim", StringComparison.OrdinalIgnoreCase))
                     {
                         sql.AppendLine($"-- HINT: This appears to be a dimension table. Consider joining on date/time columns:");
-                        sql.AppendLine($"-- LEFT JOIN [{table}] {tableAlias} ON CAST({GetTableAlias(firstTable)}.[YourDateColumn] AS DATE) = {tableAlias}.[DateKey]");
+                        sql.AppendLine($"-- LEFT JOIN [{table}] {tableAlias} ON CAST({GetTableAlias(factTable)}.[YourDateColumn] AS DATE) = {tableAlias}.[DateKey]");
                     }
                     else
                     {
-                        sql.AppendLine($"-- LEFT JOIN [{table}] {tableAlias} ON {GetTableAlias(firstTable)}.[YourKeyColumn] = {tableAlias}.[KeyColumn]");
+                        sql.AppendLine($"-- LEFT JOIN [{table}] {tableAlias} ON {GetTableAlias(factTable)}.[YourKeyColumn] = {tableAlias}.[KeyColumn]");
                     }
                 }
             }
@@ -397,13 +402,16 @@ public partial class MainForm : Form
         }
         else
         {
-            // Multiple tables but no join path found - generate placeholder with warning
+            // Multiple tables but no join path found - use fact table as base
             sql.AppendLine("-- WARNING: No join path found between tables. Please add appropriate JOIN conditions.");
-            sql.AppendLine($"FROM [{uniqueTables[0]}] {GetTableAlias(uniqueTables[0])}");
+            sql.AppendLine($"FROM [{factTable}] {GetTableAlias(factTable)}");
             for (int i = 1; i < uniqueTables.Count; i++)
             {
-                sql.AppendLine($"-- TODO: Add JOIN condition for [{uniqueTables[i]}] {GetTableAlias(uniqueTables[i])}");
-                sql.AppendLine($"-- CROSS JOIN [{uniqueTables[i]}] {GetTableAlias(uniqueTables[i])} -- Uncomment and add proper JOIN condition");
+                if (uniqueTables[i] != factTable)
+                {
+                    sql.AppendLine($"-- TODO: Add JOIN condition for [{uniqueTables[i]}] {GetTableAlias(uniqueTables[i])}");
+                    sql.AppendLine($"-- CROSS JOIN [{uniqueTables[i]}] {GetTableAlias(uniqueTables[i])} -- Uncomment and add proper JOIN condition");
+                }
             }
         }
         
